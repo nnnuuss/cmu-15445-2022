@@ -225,9 +225,7 @@ class TrieNodeWithValue : public TrieNode {
    * @param key_char Key char of this node
    * @param value Value of this node
    */
-  TrieNodeWithValue(char key_char, T value) : TrieNode(key_char), value_(value) {
-    SetEndNode(true);
-  }
+  TrieNodeWithValue(char key_char, T value) : TrieNode(key_char), value_(value) { SetEndNode(true); }
 
   /**
    * @brief Destroy the Trie Node With Value object
@@ -336,38 +334,34 @@ class Trie {
    * @return True if the key exists and is removed, false otherwise
    */
   // 删除的过程中对于非终点的节点应该不删,如果当前节点是终点节点,但是其还有子节点,那么也不应该删除,而是做一个转型,转为普通的节点
-  bool DfsRemove(const std::string &key, int id, std::unique_ptr<TrieNode> *now) {
-    if (&key[id] == &key.back()) {
-      if ((*now)->HasChild(key[id])) {
-        std::unique_ptr<TrieNode> *tar = (*now)->GetChildNode(key[id]);
-        (*tar)->SetEndNode(false);
-        if (!(*tar)->HasChildren()) {
-          (*now)->RemoveChildNode(key[id]);
-        }
-        return true;
-      }
+  bool RemoveInner(const std::string &key, size_t i, std::unique_ptr<TrieNode> *curr, bool *success) {
+    if (curr == nullptr) {
       return false;
     }
-    if ((*now)->HasChild(key[id])) {
-      if (DfsRemove(key, id + 1, (*now)->GetChildNode(key[id]))) {
-        if (!(*now)->HasChildren()) {
-          (*now)->RemoveChildNode(key[id]);
-        }
-        return true;
-      }
-      return false;
+    if (i == key.size()) {
+      *success = true;  // Remove 的返回值，表示成功删除
+      (*curr)->SetEndNode(false);
+      return !(*curr)->HasChildren() && !(*curr)->IsEndNode();
     }
-    return false;
+
+    bool can_remove = RemoveInner(key, i + 1, (*curr)->GetChildNode(key[i]), success);
+
+    if (can_remove) {
+      (*curr)->RemoveChildNode(key[i]);
+    }
+    return !(*curr)->HasChildren() && !(*curr)->IsEndNode();
   }
 
   bool Remove(const std::string &key) {
+    //    std::cout << "Remove: " << key << std::endl;
     if (key.empty()) {
       return false;
     }
+    bool success = false;
     latch_.WLock();
-    bool res = DfsRemove(key, 0, &root_);
+    RemoveInner(key, 0, &root_, &success);
     latch_.WUnlock();
-    return res;
+    return success;
   }
 
   /**
@@ -391,6 +385,7 @@ class Trie {
 
   template <typename T>
   T GetValue(const std::string &key, bool *success) {
+    //    std::cout << "GetValue: " << key << std::endl;
     if (key.empty()) {
       *success = false;
       return {};
